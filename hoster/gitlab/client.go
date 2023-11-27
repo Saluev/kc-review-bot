@@ -12,6 +12,7 @@ import (
 type clientWrapper interface {
 	loadProject(repo interface{}) gitlab.Project
 	loadMRs(repo interface{}) []*gitlab.MergeRequest
+	loadApprovals(repo interface{}, mr *gitlab.MergeRequest) *gitlab.MergeRequestApprovals
 	loadEmojis(repo interface{}, mr *gitlab.MergeRequest) []*gitlab.AwardEmoji
 	loadDiscussions(repo interface{}, mr *gitlab.MergeRequest) []*gitlab.Discussion
 }
@@ -69,6 +70,17 @@ func (c *client) loadMRs(repo interface{}) []*gitlab.MergeRequest {
 	}
 
 	return mergeRequests
+}
+
+func (c *client) loadApprovals(repoID interface{}, mr *gitlab.MergeRequest) *gitlab.MergeRequestApprovals {
+    approvals, resp, err := c.original.MergeRequestApprovals.GetConfiguration(repoID, mr.IID)
+    if err != nil {
+        log.Fatalf("failed to list merge request approvals: %v", err)
+    }
+    if resp.StatusCode != http.StatusOK {
+        log.Fatalf("failed to list merge request approvals, status code: %v", resp.StatusCode)
+    }
+    return approvals
 }
 
 // loadDiscussions of the given MR.

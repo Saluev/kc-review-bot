@@ -10,14 +10,12 @@ import (
 )
 
 type message struct {
-	User    string `json:"username,omitempty"` // only mattermost(?)
-	Channel string `json:"channel,omitempty"`  // only mattermost(?)
-	Text    string `json:"text"`
+	Content string `json:"content"`
 }
 
 // Send text to Slack or Mattermost channel.
-func Send(channel, text, webhook string) error {
-	payload, err := json.Marshal(message{User: "Review Bot 🧐", Channel: channel, Text: text})
+func Send(channel, text, webhook, webhookAuthorization string) error {
+	payload, err := json.Marshal(message{Content: text})
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %v", err)
 	}
@@ -27,6 +25,9 @@ func Send(channel, text, webhook string) error {
 		return fmt.Errorf("failed to create request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if webhookAuthorization != "" {
+		req.Header.Set("Authorization", webhookAuthorization)
+	}
 
 	client := &http.Client{}
 	resp, err := client.Do(req)

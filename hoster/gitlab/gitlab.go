@@ -2,6 +2,8 @@ package gitlab
 
 import (
 	"github.com/xanzy/go-gitlab"
+
+	"github.com/sj14/review-bot/common"
 )
 
 type reminder struct {
@@ -13,7 +15,7 @@ type reminder struct {
 }
 
 // AggregateReminder will generate the reminder message.
-func AggregateReminder(host, token string, repo interface{}, reviewers map[string]string) (gitlab.Project, []reminder) {
+func AggregateReminder(host, token string, repo interface{}, reviewers map[string]common.Reviewer) (gitlab.Project, []reminder) {
 	// setup gitlab client
 	git := newClient(host, token)
 
@@ -42,7 +44,7 @@ func AggregateReminder(host, token string, repo interface{}, reviewers map[strin
 // }
 
 // helper functions for easier testability (mocked gitlab client)
-func aggregate(git clientWrapper, repo interface{}, reviewers map[string]string) (gitlab.Project, []reminder) {
+func aggregate(git clientWrapper, repo interface{}, reviewers map[string]common.Reviewer) (gitlab.Project, []reminder) {
 	project := git.loadProject(repo)
 
 	// get open merge requests
@@ -61,14 +63,16 @@ func aggregate(git clientWrapper, repo interface{}, reviewers map[string]string)
 			continue
 		}
 
+		approvals := git.loadApprovals(project.ID, mr)
+
 		// load all emojis awarded to the mr
 		emojis := git.loadEmojis(repo, mr)
 
 		// check who gave thumbs up/down (or "sleeping")
-		reviewedBy := getReviewed(mr, emojis)
+		reviewedBy := getReviewed(mr, approvals, emojis)
 
 		// who is missing thumbs up/down
-		missing := missingReviewers(reviewedBy, reviewers)
+		missing := missingReviewers(mr, reviewedBy, reviewers)
 
 		// load all discussions of the mr
 		discussions := git.loadDiscussions(repo, mr)
@@ -90,10 +94,10 @@ func aggregate(git clientWrapper, repo interface{}, reviewers map[string]string)
 
 // responsiblePerson returns the mattermost name of the assignee or author of the MR
 // (fallback: gitlab author name)
-func responsiblePerson(mr *gitlab.MergeRequest, reviewers map[string]string) string {
+func responsiblePerson(mr *gitlab.MergeRequest, reviewers map[string]common.Reviewer) string {
 	if mr.Assignee != nil && mr.Assignee.Username != "" {
 		if assignee, ok := reviewers[mr.Assignee.Username]; ok {
-			return assignee
+			return assignee.DiscordID
 		}
 	}
 
@@ -102,7 +106,7 @@ func responsiblePerson(mr *gitlab.MergeRequest, reviewers map[string]string) str
 	}
 
 	if author, ok := reviewers[mr.Author.Username]; ok {
-		return author
+		return author.DiscordID
 	}
 
 	return mr.Author.Name
@@ -156,11 +160,15 @@ const (
 // getReviewed returns the gitlab user id of the people who have already reviewed the MR.
 // The emojis "thumbsup" 👍 and "thumbsdown" 👎 signal the user reviewed the merge request and won't receive a reminder.
 // The emoji "sleeping" 😴 means the user won't review the code and/or doesn't want to be reminded.
-func getReviewed(mr *gitlab.MergeRequest, emojis []*gitlab.AwardEmoji) []string {
+func getReviewed(mr *gitlab.MergeRequest, approvals *gitlab.MergeRequestApprovals, emojis []*gitlab.AwardEmoji) []string {
 	var reviewedBy []string
 
 	if mr.Author != nil {
 		reviewedBy = append(reviewedBy, mr.Author.Username)
+	}
+
+	for _, approver := range approvals.Approvers {
+	    reviewedBy = append(reviewedBy, approver.User.Username)
 	}
 
 	for _, emoji := range emojis {
@@ -174,9 +182,26 @@ func getReviewed(mr *gitlab.MergeRequest, emojis []*gitlab.AwardEmoji) []string 
 	return reviewedBy
 }
 
-func missingReviewers(reviewedBy []string, approvers map[string]string) []string {
-	var missing []string
-	for userID, userName := range approvers {
+func missingReviewers(mr *gitlab.MergeRequest, reviewedBy []string, approvers map[string]common.Reviewer) []string {
+    var missing []string
+	for userID, user := range approvers {
+	    if userID == mr.Author.Username {
+	        continue
+	    }
+
+	    hasRelevantLabel := false
+	    for _, mrLabel := range mr.Labels {
+	        for _, userLabel := range user.Labels {
+	            if mrLabel == userLabel {
+                    hasRelevantLabel = true
+	            }
+	        }
+	    }
+
+	    if !hasRelevantLabel {
+	        continue
+	    }
+
 		approved := false
 		for _, approverID := range reviewedBy {
 			if userID == approverID {
@@ -185,7 +210,7 @@ func missingReviewers(reviewedBy []string, approvers map[string]string) []string
 			}
 		}
 		if !approved {
-			missing = append(missing, userName)
+			missing = append(missing, user.DiscordID)
 		}
 	}
 

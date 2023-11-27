@@ -1,6 +1,6 @@
 # Review Reminder Bot
 
-For an enhanced SaaS version, visit https://www.review-bot.com/
+This is a fork for private needs, don't use it.
 
 ---
 
