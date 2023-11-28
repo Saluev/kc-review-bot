@@ -3,7 +3,7 @@ package gitlab
 import (
 	"github.com/xanzy/go-gitlab"
 
-	"github.com/sj14/review-bot/common"
+	"github.com/Saluev/kc-review-bot/common"
 )
 
 type reminder struct {

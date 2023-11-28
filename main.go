@@ -9,10 +9,10 @@ import (
 // 	"strings"
 	"text/template"
 
-    "github.com/sj14/review-bot/common"
-	"github.com/sj14/review-bot/hoster/github"
-	"github.com/sj14/review-bot/hoster/gitlab"
-	"github.com/sj14/review-bot/slackermost"
+    "github.com/Saluev/kc-review-bot/common"
+	"github.com/Saluev/kc-review-bot/hoster/github"
+	"github.com/Saluev/kc-review-bot/hoster/gitlab"
+	"github.com/Saluev/kc-review-bot/slackermost"
 )
 
 func main() {

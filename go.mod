@@ -1,4 +1,4 @@
-module github.com/sj14/review-bot
+module github.com/Saluev/kc-review-bot
 
 require (
 	github.com/google/go-github/v25 v25.1.3
